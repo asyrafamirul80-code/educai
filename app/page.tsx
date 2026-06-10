@@ -57,7 +57,7 @@ export default function Home() {
       <section id="waitlist" className="bg-blue-600 py-16 px-6 text-center text-white">
         <h2 className="text-3xl font-bold mb-3">Jadi Guru Perintis Batch 001</h2>
         <p className="text-blue-100 mb-8 text-lg">Free forever • Early access • 30% komisyen referral</p>
-        <a href="https://forms.gle/YOURFORMLINK" target="_blank" rel="noopener noreferrer"
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSePFG5P9QxTuX1I3g-Aryul1yJVdjpA42aVUCdGI17U3XMIcg/viewform" target="_blank" rel="noopener noreferrer"
           className="bg-white text-blue-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-blue-50 inline-block">
           Daftar Sekarang — Free 🎓
         </a>
