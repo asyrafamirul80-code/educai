@@ -1,67 +1,100 @@
+// LETAK FILE NI DI: app/api/generate-rph/route.ts
+// (REPLACE/OVERWRITE fail lama sepenuhnya)
+
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request: NextRequest) {
-  const { mataPelajaran, tahun, topik, tarikh, masa, bilMurid, tema, minggu, penggal, nama } = await request.json();
+  try {
+    const {
+      namaGuru, penggal, minggu, tarikh, tema,
+      kelas, masa, subjek, bilMurid,
+      bidang, unit, topik, catatanGuru,
+    } = await request.json();
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1500,
-    messages: [{
-      role: 'user',
-      content: `Buat RPH (Rancangan Pengajaran Harian) format KPM Malaysia yang RINGKAS seperti contoh berikut:
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 3000,
+      messages: [{
+        role: 'user',
+        content: `Kau adalah guru pakar Malaysia. Jana RPH (Rancangan Pengajaran Harian) berformat rasmi KPM berdasarkan maklumat berikut.
 
-Format output (IKUT TEPAT-TEPAT):
+MAKLUMAT:
+Nama Guru: ${namaGuru}
+Penggal: ${penggal}
+Minggu: ${minggu}
+Tarikh: ${tarikh}
+Tema: ${tema || topik}
+Kelas: ${kelas}
+Masa: ${masa}
+Subjek: ${subjek}
+Bil Murid: ${bilMurid}
+Bidang: ${bidang || ''}
+Unit: ${unit || topik}
+Topik: ${topik}
+Catatan: ${catatanGuru || ''}
 
-Mata Pelajaran: ${mataPelajaran}
-Kelas/Tahun: ${tahun}
-Masa: ${masa} minit
-Bil. Murid: ${bilMurid || '__'}
-Tema: ${tema || '__'}
-Penggal: ${penggal || '1'} | Minggu: ${minggu || '__'} | Tarikh: ${tarikh}
+Balas HANYA JSON sah (tiada markdown, tiada \`\`\`):
+{
+  "namaGuru": "${namaGuru}",
+  "penggal": "${penggal}",
+  "minggu": "${minggu}",
+  "tarikh": "${tarikh}",
+  "hariTarikh": "[tentukan hari: Isnin/Selasa/Rabu/Khamis/Jumaat berdasarkan tarikh, atau Rabu jika tidak pasti]",
+  "tema": "${tema || topik}",
+  "kelas": "${kelas}",
+  "masa": "${masa}",
+  "subjek": "${subjek}",
+  "bilMurid": "${bilMurid}",
+  "unit": "${unit || topik}",
+  "bidang": "${bidang || ''}",
+  "sk": "X.X SK - [Standard Kandungan utama - satu ayat berkaitan topik ${topik}]",
+  "spKod": ["X.X.1 SP", "X.X.2 SP", "X.X.3 SP"],
+  "spTeks": [
+    "[Standard Pembelajaran 1 - murid dapat ...]",
+    "[Standard Pembelajaran 2 - murid dapat ...]",
+    "[Standard Pembelajaran 3 - murid dapat ...]"
+  ],
+  "objektif": [
+    "[objektif 1] dengan baik",
+    "[objektif 2] dengan betul",
+    "[objektif 3] dengan baik"
+  ],
+  "aktiviti": [
+    "Set Induksi",
+    "Murid mendengar penerangan guru",
+    "[Aktiviti utama berkaitan topik ${topik}]",
+    "[Aktiviti latihan/praktis murid]",
+    "Guru menilai murid"
+  ],
+  "emk": "Bahasa, Nilai Murni, Kemahiran Berfikir",
+  "penilaian": "Buku aktiviti, Pemerhatian",
+  "bbm": ["Buku aktiviti", "Buku Teks"],
+  "impakMencapai": 0,
+  "impakBelum": 0,
+  "impakTidakHadir": 0
+}
 
----
+Isi semua field berdasarkan topik "${topik}" untuk mata pelajaran "${subjek}". Bahasa Malaysia formal.`,
+      }],
+    });
 
-Standard Kandungan (SK):
-[tulis SK yang berkaitan dengan topik ${topik}]
+    const text = message.content[0].type === 'text' ? message.content[0].text : '{}';
+    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
-Standard Pembelajaran (SP):
-[tulis 2-3 SP yang berkaitan]
+    let data;
+    try {
+      data = JSON.parse(clean);
+    } catch {
+      return NextResponse.json({ error: 'Format error. Cuba semula.' }, { status: 500 });
+    }
 
-Objektif Pembelajaran:
-Pada akhir sesi, murid dapat:
-1. [objektif 1]
-2. [objektif 2]
-3. [objektif 3]
+    return NextResponse.json({ data });
 
-Aktiviti PdP:
-L1. Set Induksi
-L2. Murid mendengar penerangan guru
-L3. [aktiviti utama 1 berkaitan ${topik}]
-L4. [aktiviti utama 2]
-L5. Guru menilai murid
-
-BBM:
-1. [bahan 1]
-2. [bahan 2]
-
-Nilai: [nilai-nilai murni]
-EMK: Bahasa, Nilai Murni, Kemahiran Berfikir
-Penilaian P&P: [cara penilaian]
-
-Impak/Refleksi:
-___ orang murid mencapai objektif. ___ orang murid belum mencapai objektif. ___ orang murid tidak hadir.
-
----
-Tulis dalam Bahasa Malaysia. RINGKAS dan TEPAT sahaja. Jangan panjangkan.`
-    }]
-  });
-
-  return NextResponse.json({ 
-    rph: message.content[0].type === 'text' ? message.content[0].text : '' 
-  });
+  } catch (error) {
+    console.error('Error generating RPH:', error);
+    return NextResponse.json({ error: 'Gagal jana RPH' }, { status: 500 });
+  }
 }
