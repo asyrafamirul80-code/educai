@@ -3,16 +3,52 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient, checkAndLogUsage } from '@/lib/supabase-server';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request: NextRequest) {
   try {
+    const body = await request.json();
+
+    // CHECK AUTH
+    const supabase = createServerClient();
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    if (!token) {
+      return NextResponse.json({
+        error: 'Sila log masuk untuk menggunakan ciri ini.',
+        requireLogin: true
+      }, { status: 401 });
+    }
+
+    const { data: { user } } = await supabase.auth.getUser(token);
+
+    if (!user) {
+      return NextResponse.json({
+        error: 'Sesi tamat. Sila log masuk semula.',
+        requireLogin: true
+      }, { status: 401 });
+    }
+
+    // CHECK USAGE LIMIT
+    const usage = await checkAndLogUsage(user.id, 'rph');
+
+    if (!usage.allowed) {
+      return NextResponse.json({
+        error: `Had harian tercapai (${usage.limit}x sehari). Naik taraf ke Pro untuk guna tanpa had! 🚀`,
+        limitReached: true,
+        used: usage.used,
+        limit: usage.limit
+      }, { status: 429 });
+    }
+
     const {
       namaGuru, penggal, minggu, tarikh, tema,
       kelas, masa, subjek, bilMurid,
       bidang, unit, topik, catatanGuru,
-    } = await request.json();
+    } = body;
 
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -50,25 +86,11 @@ Balas HANYA JSON sah (tiada markdown, tiada \`\`\`):
   "bilMurid": "${bilMurid}",
   "unit": "${unit || topik}",
   "bidang": "${bidang || ''}",
-  "sk": "X.X SK - [Standard Kandungan utama - satu ayat berkaitan topik ${topik}]",
+  "sk": "X.X SK - [Standard Kandungan utama]",
   "spKod": ["X.X.1 SP", "X.X.2 SP", "X.X.3 SP"],
-  "spTeks": [
-    "[Standard Pembelajaran 1 - murid dapat ...]",
-    "[Standard Pembelajaran 2 - murid dapat ...]",
-    "[Standard Pembelajaran 3 - murid dapat ...]"
-  ],
-  "objektif": [
-    "[objektif 1] dengan baik",
-    "[objektif 2] dengan betul",
-    "[objektif 3] dengan baik"
-  ],
-  "aktiviti": [
-    "Set Induksi",
-    "Murid mendengar penerangan guru",
-    "[Aktiviti utama berkaitan topik ${topik}]",
-    "[Aktiviti latihan/praktis murid]",
-    "Guru menilai murid"
-  ],
+  "spTeks": ["[SP 1]", "[SP 2]", "[SP 3]"],
+  "objektif": ["[objektif 1]", "[objektif 2]", "[objektif 3]"],
+  "aktiviti": ["Set Induksi", "Penerangan guru", "[Aktiviti utama]", "[Latihan murid]", "Penilaian"],
   "emk": "Bahasa, Nilai Murni, Kemahiran Berfikir",
   "penilaian": "Buku aktiviti, Pemerhatian",
   "bbm": ["Buku aktiviti", "Buku Teks"],
@@ -91,7 +113,7 @@ Isi semua field berdasarkan topik "${topik}" untuk mata pelajaran "${subjek}". B
       return NextResponse.json({ error: 'Format error. Cuba semula.' }, { status: 500 });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data, used: usage.used, limit: usage.limit });
 
   } catch (error) {
     console.error('Error generating RPH:', error);
