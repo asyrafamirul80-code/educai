@@ -10,6 +10,7 @@ import {
   TabStopType,
 } from 'docx';
 import { saveAs } from 'file-saver';
+import { createClient } from '@/lib/supabase'; // ← BARU
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Pilihan { A: string; B: string; C: string; D: string }
@@ -70,14 +71,12 @@ function buildDoc(d: UASAData, showJawapan: boolean): Document {
   kids.push(p([r('Bulatkan jawapan yang betul.', false, BODY)], AlignmentType.LEFT, 120));
 
   d.bahagianA.forEach(s => {
-    // Soalan
     kids.push(new Paragraph({
       children: [r(`${s.no}.\t`, true), r(s.soalan)],
       spacing: { after: 60 },
       tabStops: [{ type: TabStopType.LEFT, position: 500 }],
     }));
 
-    // Pilihan dalam 2 kolum
     kids.push(new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       borders: noBorders,
@@ -129,7 +128,6 @@ function buildDoc(d: UASAData, showJawapan: boolean): Document {
       }));
     } else {
       kids.push(p([r(s.soalan)], AlignmentType.LEFT, 120));
-      // Baris kosong untuk jawapan
       kids.push(p([r('Jawapan: _______________________________________________')], AlignmentType.LEFT, 60));
     }
 
@@ -168,15 +166,28 @@ export default function UASAGenerator() {
   const set = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
+  // ─── GENERATE WITH AUTH ───────────────────────────────────────────────────
   const generate = async () => {
     if (!form.mataPelajaran || !form.topik) {
       return setError('Sila isi: Mata Pelajaran dan Topik');
     }
     setLoading(true); setError(''); setResult(null);
     try {
+      // Get auth token
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Sila log masuk untuk menggunakan ciri ini.');
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch('/api/generate-uasa', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify(form),
       });
       const json = await res.json();
@@ -347,7 +358,7 @@ export default function UASAGenerator() {
                       ))}
                     </div>
                   )}
-                  <p className="text-green-600 text-xs mt-1">✓ Jawapan: {s.jawapan}</p>
+                  <p className="text-green-600 text-xs mt-1">✓ {s.jawapan}</p>
                 </div>
               ))}
             </div>

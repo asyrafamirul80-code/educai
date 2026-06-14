@@ -11,6 +11,7 @@ import {
   TabStopType,
 } from 'docx';
 import { saveAs } from 'file-saver';
+import { createClient } from '@/lib/supabase'; // ← BARU
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface AgendaItem { no: string; content: string }
@@ -213,14 +214,29 @@ export default function MinitMesyuarat() {
   const set = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
+  // ─── GENERATE WITH AUTH ───────────────────────────────────────────────────
   const generate = async () => {
     if (!form.tajukMesyuarat || !form.tarikhMesyuarat || !form.poinPerbincangan) {
       return setError('Sila isi: Tajuk, Tarikh, dan Poin Perbincangan');
     }
     setLoading(true); setError(''); setResult(null);
     try {
+      // Get auth token
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Sila log masuk untuk menggunakan ciri ini.');
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch('/api/generate-minit', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(form),
       });
       const json = await res.json();
       if (json.error) setError(json.error);

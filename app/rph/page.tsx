@@ -10,10 +10,10 @@ import {
   WidthType, AlignmentType, BorderStyle,
 } from 'docx';
 import { saveAs } from 'file-saver';
+import { createClient } from '@/lib/supabase'; // ← BARU
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RPHPeriod {
-  // Form inputs
   kelas: string;
   masa: string;
   subjek: string;
@@ -21,11 +21,9 @@ interface RPHPeriod {
   bidang: string;
   unit: string;
   topik: string;
-  // AI-generated
   result: RPHResult | null;
   loading: boolean;
   error: string;
-  // Impak (user fills after PdP)
   impakMencapai: string;
   impakBelum: string;
   impakTidakHadir: string;
@@ -82,7 +80,6 @@ function tc(children: Paragraph[], widthPct: number, bordered = true): TableCell
 
 // ─── Build one period table ───────────────────────────────────────────────────
 function buildPeriodTable(res: RPHResult, impakMencapai: number, impakBelum: number, impakTidakHadir: number): Table {
-  // LEFT
   const left: Paragraph[] = [
     p([r('Kelas:', true)]), p([r(res.kelas)]), gap(),
     p([r('Masa:', true)]), p([r(res.masa)]), gap(),
@@ -90,7 +87,6 @@ function buildPeriodTable(res: RPHResult, impakMencapai: number, impakBelum: num
     p([r('Bil. Murid:', true)]), p([r(res.bilMurid)]),
   ];
 
-  // MIDDLE
   const mid: Paragraph[] = [];
   if (res.unit)   mid.push(p([r(`Unit: ${res.unit}`)], AlignmentType.RIGHT, 10));
   if (res.bidang) mid.push(p([r(`Bidang: ${res.bidang}`)], AlignmentType.RIGHT, 40));
@@ -115,13 +111,11 @@ function buildPeriodTable(res: RPHResult, impakMencapai: number, impakBelum: num
   mid.push(p([r('EMK : ', true), r(res.emk)], AlignmentType.LEFT, 8));
   mid.push(p([r('Penilaian P&P: ', true), r(res.penilaian)], AlignmentType.LEFT, 8));
 
-  // RIGHT (BBM)
   const bbm: Paragraph[] = [
     p([r('BBM:', true)], AlignmentType.LEFT, 20),
     ...res.bbm.map((b, i) => p([r(`${i + 1}. ${b}`)], AlignmentType.LEFT, 8)),
   ];
 
-  // IMPAK row
   const impakText = `Impak/Refleksi: ${impakMencapai} orang murid mencapai objektif pengajaran dan pembelajaran. ${impakBelum} murid yang belum mencapai objektif pengajaran dan pembelajaran. ${impakTidakHadir} orang murid tidak hadir`;
 
   return new Table({
@@ -144,11 +138,9 @@ function buildDoc(
 ): Document {
   const kids: Array<Paragraph | Table> = [];
 
-  // Title
   kids.push(p([r('RANCANGAN PENGAJARAN HARIAN 每日教学计划', true, HEAD)], AlignmentType.CENTER, 60));
   kids.push(p([r(`NAMA: ${namaGuru.toUpperCase()}`, false, BODY)], AlignmentType.LEFT, 30));
 
-  // Header info row
   kids.push(new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: noBorders,
@@ -163,7 +155,6 @@ function buildDoc(
 
   kids.push(p([r(`主题/Tema：${tema}`, false, BODY)], AlignmentType.LEFT, 100));
 
-  // Each period
   periods.forEach((period, i) => {
     if (!period.result) return;
     kids.push(buildPeriodTable(
@@ -172,7 +163,6 @@ function buildDoc(
       parseInt(period.impakBelum) || 0,
       parseInt(period.impakTidakHadir) || 0,
     ));
-    // Gap between periods
     if (i < periods.length - 1) {
       kids.push(p([r('')], AlignmentType.LEFT, 80));
     }
@@ -226,7 +216,7 @@ export default function RPHGenerator() {
   const removePeriod = (i: number) =>
     setPeriods(ps => ps.filter((_, idx) => idx !== i));
 
-  // Generate AI for one period
+  // ─── GENERATE WITH AUTH ───────────────────────────────────────────────────
   const generatePeriod = async (i: number) => {
     const period = periods[i];
     if (!period.kelas || !period.masa || !period.subjek || !period.topik) {
@@ -235,9 +225,20 @@ export default function RPHGenerator() {
     }
     updatePeriod(i, { loading: true, error: '', result: null });
     try {
+      // Get auth token
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        updatePeriod(i, { error: 'Sila log masuk untuk menggunakan ciri ini.', loading: false });
+        return;
+      }
+
       const res = await fetch('/api/generate-rph', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           namaGuru: header.namaGuru,
           penggal: header.penggal,
@@ -257,7 +258,6 @@ export default function RPHGenerator() {
       if (json.error) {
         updatePeriod(i, { error: json.error, loading: false });
       } else {
-        // Save hariTarikh from first result
         if (!header.hariTarikh && json.data.hariTarikh) {
           setHeader(h => ({ ...h, hariTarikh: json.data.hariTarikh }));
         }
@@ -348,7 +348,6 @@ export default function RPHGenerator() {
         {periods.map((period, i) => (
           <div key={i} className={`bg-white rounded-2xl shadow-sm p-6 border-2 ${period.result ? 'border-green-200' : 'border-transparent'}`}>
 
-            {/* Period header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">{i + 1}</span>
@@ -364,7 +363,6 @@ export default function RPHGenerator() {
               )}
             </div>
 
-            {/* Form fields */}
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -422,7 +420,6 @@ export default function RPHGenerator() {
 
               {period.error && <p className="text-red-500 text-xs">{period.error}</p>}
 
-              {/* Impak (only show after AI done) */}
               {period.result && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mt-2">
                   <p className="text-xs font-semibold text-yellow-700 mb-2">Impak/Refleksi (isi selepas PdP)</p>
@@ -465,7 +462,6 @@ export default function RPHGenerator() {
           </div>
         ))}
 
-        {/* Add period button */}
         {periods.length < 8 && (
           <button onClick={addPeriod}
             className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 font-medium text-sm transition-colors">
@@ -473,7 +469,6 @@ export default function RPHGenerator() {
           </button>
         )}
 
-        {/* Download button */}
         {doneCount > 0 && (
           <div className="bg-white rounded-2xl shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
