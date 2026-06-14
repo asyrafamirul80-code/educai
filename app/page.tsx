@@ -14,7 +14,7 @@ export default function HomePage() {
           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Beta</span>
         </div>
         <Link
-          href="/dashboard"
+          href="/login"
           className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
           Cuba Sekarang
@@ -38,12 +38,12 @@ export default function HomePage() {
         </p>
 
         <Link
-          href="/dashboard"
+          href="/register"
           className="bg-blue-600 text-white text-lg font-semibold px-8 py-4 rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 mb-3"
         >
           Mula Guna Percuma →
         </Link>
-        <p className="text-gray-400 text-sm">Tiada daftar. Terus guna.</p>
+        <p className="text-gray-400 text-sm">Percuma. Tiada kad kredit diperlukan.</p>
       </section>
 
       {/* STATS */}
@@ -111,13 +111,13 @@ export default function HomePage() {
       <section className="bg-blue-600 mx-6 rounded-2xl p-8 text-center mb-12">
         <h2 className="text-2xl font-bold text-white mb-3">Cuba sekarang — percuma!</h2>
         <p className="text-blue-100 text-sm mb-6">
-          Lebih 20 Guru Perintis dah guna. Tiada daftar diperlukan.
+          Lebih 20 Guru Perintis dah guna. Daftar percuma dalam 30 saat.
         </p>
         <Link
-          href="/dashboard"
+          href="/register"
           className="bg-white text-blue-600 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition-colors inline-block"
         >
-          Buka Dashboard →
+          Daftar Percuma →
         </Link>
       </section>
 
